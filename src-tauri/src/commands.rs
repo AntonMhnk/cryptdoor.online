@@ -492,3 +492,22 @@ pub async fn current_external_ip() -> Result<String, String> {
         .map_err(fail)?;
     Ok(txt.trim().to_string())
 }
+
+#[tauri::command]
+pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = app.updater().map_err(|e| format!("updater init: {e}"))?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("update check: {e}"))?
+        .ok_or_else(|| "no update available".to_string())?;
+
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
+        .map_err(|e| format!("download/install: {e}"))?;
+
+    app.restart();
+}

@@ -40,7 +40,9 @@ export default function App() {
   })
   const [autostart, setAutostart] = useState<boolean>(false)
   const [version, setVersion] = useState<string>('')
-  const [updateReady, setUpdateReady] = useState<boolean>(false)
+  const [pendingUpdate, setPendingUpdate] = useState<{ version: string } | null>(null)
+  const [installingUpdate, setInstallingUpdate] = useState<boolean>(false)
+  const [updateDismissed, setUpdateDismissed] = useState<boolean>(false)
 
   const activeKey = useMemo(
     () => keys.find(k => k.id === activeId) ?? null,
@@ -68,9 +70,24 @@ export default function App() {
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined
-    listen('update-installed', () => setUpdateReady(true)).then(fn => { unlisten = fn })
+    listen<{ version: string }>('update-available', evt => {
+      setPendingUpdate(evt.payload)
+      setUpdateDismissed(false)
+    }).then(fn => { unlisten = fn })
     return () => { unlisten?.() }
   }, [])
+
+  const handleInstallUpdate = useCallback(async () => {
+    if (installingUpdate) return
+    setInstallingUpdate(true)
+    setError(null)
+    try {
+      await api.installUpdate()
+    } catch (e) {
+      setInstallingUpdate(false)
+      setError(typeof e === 'string' ? e : 'Update failed')
+    }
+  }, [installingUpdate])
 
   const toggleAutostart = useCallback(async () => {
     try {
@@ -201,15 +218,45 @@ export default function App() {
     api.setTrayStatus(statusLabel, status === 'connected').catch(() => {})
   }, [statusLabel, status])
 
+  const showUpdateBanner = pendingUpdate && !updateDismissed
+
   return (
     <div className="app">
       <div className="titlebar" />
       {version && (
-        <div className="version-tag" title={updateReady ? 'Update will be applied on next restart' : `CryptDoor v${version}`}>
+        <div className="version-tag" title={`CryptDoor v${version}`}>
           v{version}
-          {updateReady && <span className="version-dot" aria-label="Update pending" />}
+          {pendingUpdate && <span className="version-dot" aria-label="Update available" />}
         </div>
       )}
+
+      {showUpdateBanner && (
+        <div className="update-banner">
+          <div className="update-banner-info">
+            <div className="update-banner-title">Update available</div>
+            <div className="update-banner-sub">
+              v{version} → v{pendingUpdate.version}
+            </div>
+          </div>
+          <div className="update-banner-actions">
+            <button
+              className="update-banner-later"
+              onClick={() => setUpdateDismissed(true)}
+              disabled={installingUpdate}
+            >
+              Later
+            </button>
+            <button
+              className="update-banner-install"
+              onClick={handleInstallUpdate}
+              disabled={installingUpdate}
+            >
+              {installingUpdate ? 'Installing…' : 'Install'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="shell">
         <div className="brand">
           <span className="brand-dot" />

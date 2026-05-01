@@ -30,6 +30,7 @@ pub fn run() {
             current_external_ip,
             helper_status,
             install_helper,
+            install_update,
             tray_set_status,
             window_show,
         ])
@@ -154,29 +155,14 @@ async fn check_for_updates<R: Runtime>(app: AppHandle<R>) -> anyhow::Result<()> 
         return Ok(());
     };
 
-    log::info!(
-        "update {} available, downloading silently",
-        update.version
-    );
+    log::info!("update {} available", update.version);
     let _ = app.emit(
         "update-available",
-        serde_json::json!({ "version": update.version }),
+        serde_json::json!({
+            "version": update.version,
+            "currentVersion": update.current_version,
+        }),
     );
-
-    let mut downloaded: u64 = 0;
-    update
-        .download_and_install(
-            |chunk_length, _content_length| {
-                downloaded = downloaded.saturating_add(chunk_length as u64);
-            },
-            || {
-                log::info!("update download finished");
-            },
-        )
-        .await?;
-
-    log::info!("update installed, will be applied on next launch");
-    let _ = app.emit("update-installed", ());
     Ok(())
 }
 

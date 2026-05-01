@@ -64,4 +64,7 @@ export const api = {
   showWindow(): Promise<void> {
     return invoke<void>('window_show')
   },
+  installUpdate(): Promise<void> {
+    return invoke<void>('install_update')
+  },
 }
