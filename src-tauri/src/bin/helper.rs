@@ -411,6 +411,20 @@ mod win_service {
         Ok(())
     }
 
+    /// Returned in the install path for the case when the service was previously
+    /// marked for deletion but a handle is still held — the only real fix is
+    /// a Windows reboot. We surface this as a dedicated exit code so the UI can
+    /// show a meaningful message instead of "UAC install cancelled or failed".
+    pub const ERROR_SERVICE_MARKED_FOR_DELETE: i32 = 1072;
+
+    fn os_error(err: &windows_service::Error) -> Option<i32> {
+        if let windows_service::Error::Winapi(io) = err {
+            io.raw_os_error()
+        } else {
+            None
+        }
+    }
+
     pub fn install() -> windows_service::Result<()> {
         let manager = ServiceManager::local_computer(
             None::<&str>,
@@ -434,11 +448,42 @@ mod win_service {
             account_password: None,
         };
 
-        let service =
-            manager.create_service(&info, ServiceAccess::START | ServiceAccess::CHANGE_CONFIG)?;
-        let _ = service.set_description("CryptDoor TUN helper service");
-        let _ = service.start::<&str>(&[]);
-        Ok(())
+        // Idempotent install: if the service is already registered (from a previous
+        // attempt or older version), reuse it — update its config to point at the
+        // current binary and (re)start it. Otherwise create from scratch.
+        // We never call delete() here; that's reserved for the NSIS uninstall hook.
+        let access = ServiceAccess::QUERY_STATUS
+            | ServiceAccess::CHANGE_CONFIG
+            | ServiceAccess::START
+            | ServiceAccess::STOP;
+
+        match manager.open_service(SERVICE_NAME, access) {
+            Ok(existing) => {
+                let _ = existing.stop();
+                std::thread::sleep(Duration::from_millis(800));
+                if let Err(e) = existing.change_config(&info) {
+                    if os_error(&e) == Some(ERROR_SERVICE_MARKED_FOR_DELETE) {
+                        return Err(e);
+                    }
+                }
+                let _ = existing.set_description("CryptDoor TUN helper service");
+                if let Err(e) = existing.start::<&str>(&[]) {
+                    if os_error(&e) == Some(ERROR_SERVICE_MARKED_FOR_DELETE) {
+                        return Err(e);
+                    }
+                }
+                Ok(())
+            }
+            Err(_) => {
+                let service = manager.create_service(
+                    &info,
+                    ServiceAccess::START | ServiceAccess::CHANGE_CONFIG,
+                )?;
+                let _ = service.set_description("CryptDoor TUN helper service");
+                let _ = service.start::<&str>(&[]);
+                Ok(())
+            }
+        }
     }
 
     pub fn uninstall() -> windows_service::Result<()> {
@@ -475,9 +520,18 @@ fn main() {
                     println!("CryptDoor helper service installed and started");
                 }
                 Err(e) => {
-                    log(&format!("install failed: {e}"));
-                    eprintln!("install failed: {e}");
-                    std::process::exit(1);
+                    log(&format!("install failed: {e:?}"));
+                    eprintln!("install failed: {e:?}");
+                    let code = match e {
+                        windows_service::Error::Winapi(ref io)
+                            if io.raw_os_error()
+                                == Some(win_service::ERROR_SERVICE_MARKED_FOR_DELETE) =>
+                        {
+                            72
+                        }
+                        _ => 1,
+                    };
+                    std::process::exit(code);
                 }
             },
             "uninstall" => match win_service::uninstall() {
@@ -486,8 +540,8 @@ fn main() {
                     println!("CryptDoor helper service uninstalled");
                 }
                 Err(e) => {
-                    log(&format!("uninstall failed: {e}"));
-                    eprintln!("uninstall failed: {e}");
+                    log(&format!("uninstall failed: {e:?}"));
+                    eprintln!("uninstall failed: {e:?}");
                     std::process::exit(1);
                 }
             },

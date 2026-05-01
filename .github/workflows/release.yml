@@ -134,17 +134,22 @@ jobs:
       - name: Build latest.json for updater
         id: meta
         shell: bash
+        env:
+          # Pass via env so that multiline commit messages don't break the shell.
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          NOTES="${{ github.event.head_commit.message }}"
-          [ -z "$NOTES" ] && NOTES="See https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF_NAME}"
+          NOTES="$COMMIT_MSG"
+          if [ -z "$NOTES" ]; then
+            NOTES="See https://github.com/${REPO}/releases/tag/${GITHUB_REF_NAME}"
+          fi
 
-          REPO="${{ github.repository }}"
           BASE="https://github.com/${REPO}/releases/download/${GITHUB_REF_NAME}"
 
           # Search recursively because actions/upload-artifact preserves
-          # source directory structure (e.g. artifacts/macos-arm64/macos/*.tar.gz)
+          # source directory structure (e.g. artifacts/macos-arm64/macos/*.tar.gz).
           MAC_ARM_TARBALL=$(find artifacts/macos-arm64 -type f -name '*.app.tar.gz' | head -1 || true)
           MAC_ARM_SIG=$(find artifacts/macos-arm64 -type f -name '*.app.tar.gz.sig' | head -1 || true)
           WIN_NSIS=$(find artifacts/windows-x64 -type f -name '*.exe' ! -name '*.sig' | head -1 || true)
@@ -168,23 +173,25 @@ jobs:
 
           PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-          cat > artifacts/latest.json <<EOF
-          {
-            "version": "${VERSION}",
-            "notes": "${NOTES}",
-            "pub_date": "${PUB_DATE}",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "${MAC_SIG_VAL}",
-                "url": "${BASE}/${MAC_ARM_TB_NAME}"
-              },
-              "windows-x86_64": {
-                "signature": "${WIN_SIG_VAL}",
-                "url": "${BASE}/${WIN_NSIS_NAME}"
-              }
-            }
-          }
-          EOF
+          # Use jq to build JSON safely — handles quotes, newlines, and any
+          # special characters in NOTES without manual escaping.
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes   "$NOTES" \
+            --arg pub     "$PUB_DATE" \
+            --arg mac_sig "$MAC_SIG_VAL" \
+            --arg mac_url "${BASE}/${MAC_ARM_TB_NAME}" \
+            --arg win_sig "$WIN_SIG_VAL" \
+            --arg win_url "${BASE}/${WIN_NSIS_NAME}" \
+            '{
+               version: $version,
+               notes: $notes,
+               pub_date: $pub,
+               platforms: {
+                 "darwin-aarch64": { signature: $mac_sig, url: $mac_url },
+                 "windows-x86_64": { signature: $win_sig, url: $win_url }
+               }
+             }' > artifacts/latest.json
 
           cat artifacts/latest.json
 

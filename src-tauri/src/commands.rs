@@ -278,8 +278,18 @@ async fn install_helper_windows(_app: &AppHandle) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
+        let code = output.status.code().unwrap_or(-1);
+        // Helper exits 72 when the service is in MARKED_FOR_DELETE state — only
+        // a Windows reboot can clear that. Surface a friendlier hint in the UI.
+        if code == 72 {
+            return Err(anyhow!(
+                "Old CryptDoor service is still being removed by Windows. \
+                 Please reboot Windows once and try Connect again."
+            ));
+        }
         return Err(anyhow!(
-            "UAC install cancelled or failed: {}",
+            "UAC install cancelled or failed (exit {}): {}",
+            code,
             err.trim()
         ));
     }
