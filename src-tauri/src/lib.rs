@@ -10,6 +10,11 @@ use tauri::{
 };
 use tauri_plugin_updater::UpdaterExt;
 
+/// How often we re-check the updater endpoint while the app is running.
+/// 12 hours strikes a balance between catching new releases promptly and
+/// avoiding noise on GitHub's release endpoint.
+const UPDATE_CHECK_INTERVAL_SECS: u64 = 12 * 60 * 60;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -48,8 +53,24 @@ pub fn run() {
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = check_for_updates(handle).await {
-                    log::warn!("updater check failed: {e:#}");
+                // Initial check shortly after launch.
+                if let Err(e) = check_for_updates(handle.clone()).await {
+                    log::warn!("initial updater check failed: {e:#}");
+                }
+
+                // Periodic background check so the UI surfaces new releases
+                // even when the app stays open for days.
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+                    UPDATE_CHECK_INTERVAL_SECS,
+                ));
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                // Consume the immediate first tick so we don't double-check on launch.
+                interval.tick().await;
+                loop {
+                    interval.tick().await;
+                    if let Err(e) = check_for_updates(handle.clone()).await {
+                        log::warn!("periodic updater check failed: {e:#}");
+                    }
                 }
             });
 

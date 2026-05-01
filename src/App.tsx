@@ -82,12 +82,18 @@ export default function App() {
   useEffect(() => {
     const unlisteners: UnlistenFn[] = []
     listen<{ version: string; notes: string }>('update-available', evt => {
-      setPendingUpdate({
-        version: evt.payload.version,
-        notes: evt.payload.notes || '',
+      setPendingUpdate(prev => {
+        // Periodic re-check (every 12h) re-emits the same payload — don't
+        // reset the phase if we're already handling it (downloading / installed),
+        // otherwise we'd erase "Restart now" and bounce the user back to "Install".
+        if (prev?.version === evt.payload.version) {
+          return prev
+        }
+        return {
+          version: evt.payload.version,
+          notes: evt.payload.notes || '',
+        }
       })
-      setUpdateDismissed(false)
-      setUpdatePhase('idle')
     }).then(fn => unlisteners.push(fn))
 
     listen<{ downloaded: number; total: number }>('update-progress', evt => {
@@ -158,6 +164,17 @@ export default function App() {
 
   const handleConnectRef = useRef<() => void>(() => {})
   const handleDisconnectRef = useRef<() => void>(() => {})
+  const lastUpdateVersionRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (pendingUpdate && pendingUpdate.version !== lastUpdateVersionRef.current) {
+      lastUpdateVersionRef.current = pendingUpdate.version
+      setUpdatePhase('idle')
+      setUpdateProgress({ downloaded: 0, total: 0 })
+      setUpdateDismissed(false)
+      setShowNotes(false)
+    }
+  }, [pendingUpdate])
 
   useEffect(() => {
     let unlisten: UnlistenFn | undefined
