@@ -43,15 +43,26 @@ fn resolve_mihomo(_app: &AppHandle) -> Result<PathBuf> {
         .ok_or_else(|| anyhow!("no parent for current_exe"))?;
 
     let triple = current_triple();
+    let bin_name = if cfg!(target_os = "windows") {
+        "mihomo.exe"
+    } else {
+        "mihomo"
+    };
+    let triple_name = if cfg!(target_os = "windows") {
+        format!("mihomo-{triple}.exe")
+    } else {
+        format!("mihomo-{triple}")
+    };
+
     let candidates = [
-        parent.join("mihomo"),
-        parent.join(format!("mihomo-{triple}")),
+        parent.join(bin_name),
+        parent.join(&triple_name),
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("sidecar")
-            .join(format!("mihomo-{triple}")),
+            .join(&triple_name),
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("sidecar")
-            .join("mihomo"),
+            .join(bin_name),
     ];
 
     for c in candidates.iter() {
@@ -110,16 +121,39 @@ pub async fn install_helper(app: AppHandle) -> Result<(), String> {
 }
 
 async fn install_helper_inner(app: &AppHandle) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        install_helper_macos(app).await
+    }
+    #[cfg(target_os = "windows")]
+    {
+        install_helper_windows(app).await
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let _ = app;
+        Err(anyhow!("unsupported platform"))
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn install_helper_macos(app: &AppHandle) -> Result<()> {
     let resolver = app.path();
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let triple = current_triple();
     let helper_candidates: Vec<PathBuf> = vec![
-        manifest_dir.join("sidecar").join("cryptdoor-helper"),
-        resolver
-            .resolve("cryptdoor-helper", tauri::path::BaseDirectory::Resource)
-            .unwrap_or_default(),
+        // Production: bundled via externalBin → next to CryptDoor binary
         std::env::current_exe()
             .ok()
             .and_then(|e| e.parent().map(|p| p.join("cryptdoor-helper")))
+            .unwrap_or_default(),
+        // Dev: cargo build output staged by copy-helper.mjs (with triple suffix)
+        manifest_dir
+            .join("sidecar")
+            .join(format!("cryptdoor-helper-{triple}")),
+        manifest_dir.join("sidecar").join("cryptdoor-helper"),
+        resolver
+            .resolve("cryptdoor-helper", tauri::path::BaseDirectory::Resource)
             .unwrap_or_default(),
     ];
     let helper_src = helper_candidates
@@ -209,6 +243,53 @@ launchctl load -w /Library/LaunchDaemons/online.cryptdoor.helper.plist
         .await
         .map_err(|e| anyhow!("join error: {e}"))?
         .context("helper not responding after install")?;
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+async fn install_helper_windows(_app: &AppHandle) -> Result<()> {
+    let exe = std::env::current_exe()?;
+    let parent = exe
+        .parent()
+        .ok_or_else(|| anyhow!("no parent dir for current_exe"))?;
+    let helper_exe = parent.join("cryptdoor-helper.exe");
+    if !helper_exe.exists() {
+        return Err(anyhow!(
+            "cryptdoor-helper.exe not found at {}",
+            helper_exe.display()
+        ));
+    }
+
+    let helper_str = helper_exe.to_string_lossy().to_string();
+
+    // Запрашиваем UAC через PowerShell + Start-Process -Verb RunAs.
+    // -Wait блокирует пока пользователь не закроет UAC-диалог и helper не закончит install.
+    let script = format!(
+        r#"$ErrorActionPreference = 'Stop'; $p = Start-Process -FilePath "{path}" -ArgumentList "install" -Verb RunAs -Wait -PassThru; if ($p.ExitCode -ne 0) {{ exit $p.ExitCode }}"#,
+        path = helper_str.replace('"', "`\"")
+    );
+
+    let output = tokio::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .await
+        .context("spawn powershell")?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!(
+            "UAC install cancelled or failed: {}",
+            err.trim()
+        ));
+    }
+
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    tokio::task::spawn_blocking(|| helper_client::ping_with_retry(40))
+        .await
+        .map_err(|e| anyhow!("join error: {e}"))?
+        .context("helper service not responding after install")?;
 
     Ok(())
 }

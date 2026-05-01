@@ -1,0 +1,15 @@
+{
+  "bundle": {
+    "resources": {
+      "sidecar/wintun.dll": "wintun.dll"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "displayLanguageSelector": false,
+        "languages": ["English"],
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
+}

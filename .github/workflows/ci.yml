@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Download mihomo sidecar
+        run: pnpm prebuild:mihomo ${{ matrix.target }}
+
+      - name: Download wintun (Windows only)
+        if: matrix.os == 'windows-latest'
+        run: pnpm prebuild:wintun ${{ matrix.target }}
+
+      - name: Build helper binary
+        run: |
+          cd src-tauri
+          cargo build --release --bin cryptdoor-helper --target ${{ matrix.target }}
+        shell: bash
+
+      - name: Stage helper for externalBin
+        run: node scripts/copy-helper.mjs
+        env:
+          PROFILE: release
+          CARGO_BUILD_TARGET: ${{ matrix.target }}
+
+      - name: TypeScript check
+        run: pnpm build
+
+      - name: Cargo check
+        run: |
+          cd src-tauri
+          cargo check --target ${{ matrix.target }}
+        shell: bash
+
+      - name: Clippy (warnings allowed for now)
+        run: |
+          cd src-tauri
+          cargo clippy --target ${{ matrix.target }} --no-deps -- -A warnings
+        shell: bash

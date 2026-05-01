@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/online.cryptdoor.helper.plist": "online.cryptdoor.helper.plist"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    }
+  }
+}

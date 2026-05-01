@@ -10,7 +10,10 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build:signed": "TAURI_SIGNING_PRIVATE_KEY=\"$(cat ~/.tauri/cryptdoor.key 2>/dev/null)\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=\"\" tauri build",
+    "release:bump": "node scripts/bump-version.mjs",
     "prebuild:mihomo": "node scripts/download-mihomo.mjs",
+    "prebuild:wintun": "node scripts/download-wintun.mjs",
     "build:helper": "cd src-tauri && cargo build --bin cryptdoor-helper && node ../scripts/copy-helper.mjs"
   },
   "dependencies": {
@@ -26,10 +29,13 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.4.0",
+    "@types/adm-zip": "^0.5.8",
     "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.6.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "adm-zip": "^0.5.17",
     "node-fetch": "^3.3.2",
     "typescript": "~5.6.3",
     "vite": "^5.4.10"

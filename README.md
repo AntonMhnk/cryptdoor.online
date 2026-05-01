@@ -44,19 +44,39 @@ VLESS + REALITY поверх Mihomo. Системный TUN-режим: меня
 
 ```bash
 pnpm install
-pnpm prebuild:mihomo      # скачать mihomo под текущую платформу
+pnpm prebuild:mihomo            # скачать mihomo под текущую платформу
+pnpm prebuild:wintun            # (только для Windows-таргета)
+pnpm build:helper               # собрать privileged helper и положить в sidecar/
 pnpm tauri:dev
+```
+
+Локальный полный билд с подписью апдейтов (читает приватный ключ из `~/.tauri/cryptdoor.key`):
+
+```bash
+pnpm tauri:build:signed
 ```
 
 ## Релиз
 
-Релизы собираются автоматически через GitHub Actions при пуше тега:
+Релизы собираются автоматически через GitHub Actions для **macOS (Apple Silicon)** и **Windows x64** при пуше тега. Также генерируется `latest.json` для tauri-plugin-updater.
 
 ```bash
+pnpm release:bump patch         # 0.1.0 -> 0.1.1 (или minor / major / явная версия)
+git commit -am "release v0.1.1"
 git tag v0.1.1
-git push --tags
-# через ~15 минут на странице Releases появятся .dmg + .exe
+git push && git push --tags
 ```
+
+Через ~15 минут на странице Releases появятся `.dmg`, `.exe`, `.app.tar.gz`, `.sig` и `latest.json`.
+
+### Секреты GitHub Actions (Settings → Secrets and variables → Actions)
+
+| Имя | Содержимое |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | Содержимое файла `~/.tauri/cryptdoor.key` (целиком) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Пароль ключа (если генерили без пароля — пустая строка) |
+
+Без них релизный workflow **упадёт** на этапе подписи updater-артефактов.
 
 ## Архитектура
 

@@ -44,22 +44,7 @@
     "longDescription": "CryptDoor — secure, fast, simple VPN.",
     "publisher": "CryptDoor",
     "copyright": "© CryptDoor",
-    "externalBin": ["sidecar/mihomo"],
-    "resources": {
-      "resources/online.cryptdoor.helper.plist": "online.cryptdoor.helper.plist",
-      "sidecar/cryptdoor-helper": "cryptdoor-helper"
-    },
-    "macOS": {
-      "minimumSystemVersion": "11.0",
-      "signingIdentity": "-"
-    },
-    "windows": {
-      "nsis": {
-        "installMode": "perMachine",
-        "displayLanguageSelector": false,
-        "languages": ["English"]
-      }
-    },
+    "externalBin": ["sidecar/mihomo", "sidecar/cryptdoor-helper"],
     "createUpdaterArtifacts": true
   },
   "plugins": {
