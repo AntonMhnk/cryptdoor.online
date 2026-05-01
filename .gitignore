@@ -1,0 +1,36 @@
+# deps
+node_modules
+dist
+dist-ssr
+
+# tauri build outputs
+src-tauri/target
+src-tauri/sidecar/*
+!src-tauri/sidecar/.gitkeep
+src-tauri/gen
+
+# build artifacts
+*.dmg
+*.exe
+*.msi
+*.app
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
+
+# tauri updater keys (NEVER commit private)
+*.key
+**/tauri.private.key
+**/tauri-private.key
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.log
+
+# env
+.env
+.env.local
+.env.*.local

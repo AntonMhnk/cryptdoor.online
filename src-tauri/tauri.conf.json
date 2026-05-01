@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CryptDoor",
+  "mainBinaryName": "CryptDoor",
+  "version": "0.1.0",
+  "identifier": "online.cryptdoor.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CryptDoor",
+        "width": 440,
+        "height": 760,
+        "minWidth": 420,
+        "minHeight": 680,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "shortDescription": "CryptDoor VPN",
+    "longDescription": "CryptDoor — secure, fast, simple VPN.",
+    "publisher": "CryptDoor",
+    "copyright": "© CryptDoor",
+    "externalBin": ["sidecar/mihomo"],
+    "resources": {
+      "resources/online.cryptdoor.helper.plist": "online.cryptdoor.helper.plist",
+      "sidecar/cryptdoor-helper": "cryptdoor-helper"
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    }
+  }
+}
