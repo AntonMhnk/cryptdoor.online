@@ -143,15 +143,20 @@ jobs:
           REPO="${{ github.repository }}"
           BASE="https://github.com/${REPO}/releases/download/${GITHUB_REF_NAME}"
 
-          # Find platform artifacts
-          MAC_ARM_TARBALL=$(ls artifacts/macos-arm64/*.app.tar.gz | head -1 || true)
-          MAC_ARM_SIG=$(ls artifacts/macos-arm64/*.app.tar.gz.sig | head -1 || true)
-          WIN_NSIS=$(ls artifacts/windows-x64/*.exe | head -1 || true)
-          WIN_SIG=$(ls artifacts/windows-x64/*.exe.sig | head -1 || true)
+          # Search recursively because actions/upload-artifact preserves
+          # source directory structure (e.g. artifacts/macos-arm64/macos/*.tar.gz)
+          MAC_ARM_TARBALL=$(find artifacts/macos-arm64 -type f -name '*.app.tar.gz' | head -1 || true)
+          MAC_ARM_SIG=$(find artifacts/macos-arm64 -type f -name '*.app.tar.gz.sig' | head -1 || true)
+          WIN_NSIS=$(find artifacts/windows-x64 -type f -name '*.exe' ! -name '*.sig' | head -1 || true)
+          WIN_SIG=$(find artifacts/windows-x64 -type f -name '*.exe.sig' | head -1 || true)
 
-          if [ -z "$MAC_ARM_TARBALL" ] || [ -z "$WIN_NSIS" ]; then
+          if [ -z "$MAC_ARM_TARBALL" ] || [ -z "$WIN_NSIS" ] || [ -z "$MAC_ARM_SIG" ] || [ -z "$WIN_SIG" ]; then
             echo "missing build artifacts" >&2
-            ls -R artifacts || true
+            echo "MAC_ARM_TARBALL=$MAC_ARM_TARBALL" >&2
+            echo "MAC_ARM_SIG=$MAC_ARM_SIG" >&2
+            echo "WIN_NSIS=$WIN_NSIS" >&2
+            echo "WIN_SIG=$WIN_SIG" >&2
+            find artifacts -type f >&2
             exit 1
           fi
 
@@ -186,7 +191,7 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p release
-          find artifacts -maxdepth 3 -type f \
+          find artifacts -type f \
             \( -name '*.dmg' -o -name '*.exe' -o -name '*.app.tar.gz' -o -name '*.sig' \) \
             -exec cp {} release/ \;
           cp artifacts/latest.json release/latest.json
