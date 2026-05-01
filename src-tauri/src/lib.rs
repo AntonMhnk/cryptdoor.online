@@ -31,6 +31,7 @@ pub fn run() {
             helper_status,
             install_helper,
             install_update,
+            restart_app,
             tray_set_status,
             window_show,
         ])
@@ -161,6 +162,8 @@ async fn check_for_updates<R: Runtime>(app: AppHandle<R>) -> anyhow::Result<()> 
         serde_json::json!({
             "version": update.version,
             "currentVersion": update.current_version,
+            "notes": update.body.clone().unwrap_or_default(),
+            "pubDate": update.date.map(|d| d.to_string()).unwrap_or_default(),
         }),
     );
     Ok(())

@@ -67,4 +67,7 @@ export const api = {
   installUpdate(): Promise<void> {
     return invoke<void>('install_update')
   },
+  restartApp(): Promise<void> {
+    return invoke<void>('restart_app')
+  },
 }

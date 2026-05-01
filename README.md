@@ -1,109 +1,128 @@
 # CryptDoor
 
-Secure, fast, simple VPN client.
+A simple, fast VPN client for macOS and Windows.
 
-VLESS + REALITY поверх Mihomo. Системный TUN-режим: меняется IP, а не просто трафик в браузере.
+VLESS + REALITY over Mihomo. System-wide TUN mode: your IP actually changes — not just browser traffic.
 
-## Установка
+## Install
 
-### macOS (Apple Silicon, M1/M2/M3/M4)
+### macOS (Apple Silicon — M1/M2/M3/M4)
 
-1. Скачать `.dmg` со страницы [Releases](https://github.com/AntonMhnk/cryptdoor.online/releases/latest)
-2. Перетащить `CryptDoor.app` в `/Applications`
-3. Запустить:
+1. Download the `.dmg` from the [Releases](https://github.com/AntonMhnk/cryptdoor.online/releases/latest) page.
+2. Drag `CryptDoor.app` into `/Applications`.
+3. Open it:
    ```bash
    xattr -cr /Applications/CryptDoor.app
    open /Applications/CryptDoor.app
    ```
-4. При первом подключении ввести пароль macOS — это нужно для установки TUN-помощника
+4. On the first Connect, macOS will ask for your password — this installs the privileged TUN helper. You'll only need to do this once.
 
 ### Windows (10/11, 64-bit)
 
-1. Скачать `.exe`-установщик со страницы [Releases](https://github.com/AntonMhnk/cryptdoor.online/releases/latest)
-2. Запустить — если SmartScreen ругается, нажать **More info** → **Run anyway**
-3. Установить как обычное приложение
-4. При первом подключении подтвердить UAC-запрос — это нужно для установки TUN-сервиса
+1. Download the `.exe` installer from the [Releases](https://github.com/AntonMhnk/cryptdoor.online/releases/latest) page.
+2. Run it. If SmartScreen blocks the launch, click **More info** → **Run anyway**.
+3. Install like any other app.
+4. On the first Connect, Windows will show a UAC prompt — this registers the TUN helper service. You'll only need to do this once.
 
-## Возможности
+## Features
 
-- TUN-режим (системный, меняется IP)
-- Поддержка нескольких VLESS-ключей с быстрым переключением
-- Tray-иконка (menu bar) с быстрыми действиями
-- Запуск при логине системы
-- Автообновления (тихие, в фоне)
+- **System TUN mode** — full traffic routing, your IP truly changes (Telegram, native apps, everything)
+- **Multiple VLESS keys** with one-click switching
+- **Tray icon** (menu bar / system tray) with quick connect / disconnect
+- **Launch at login** — VPN is ready as soon as you log in
+- **Silent auto-updates** — signed releases via GitHub, with a one-click "Install / Restart now" UI
+- **Cross-platform** — same UX on macOS and Windows
 
-## Стек
+## Stack
 
 - **UI:** React 18, TypeScript, Vite
 - **Native:** Tauri 2 (Rust)
-- **Core:** Mihomo (MetaCubeX) как sidecar
-- **Транспорт:** VLESS + REALITY
-- **TUN на Windows:** WinTun (Wireguard)
+- **VPN core:** Mihomo (MetaCubeX) as a sidecar
+- **Transport:** VLESS + REALITY
+- **TUN on Windows:** WinTun driver (from WireGuard)
+- **TUN on macOS:** native `utun` interface
 
-## Разработка
+## Development
 
 ```bash
 pnpm install
-pnpm prebuild:mihomo            # скачать mihomo под текущую платформу
-pnpm prebuild:wintun            # (только для Windows-таргета)
-pnpm build:helper               # собрать privileged helper и положить в sidecar/
+pnpm prebuild:mihomo            # download mihomo binary for the current platform
+pnpm prebuild:wintun            # Windows targets only
+pnpm build:helper               # build the privileged helper and stage it under sidecar/
 pnpm tauri:dev
 ```
 
-Локальный полный билд с подписью апдейтов (читает приватный ключ из `~/.tauri/cryptdoor.key`):
+Local production build, signing the updater artifacts (reads the private key from `~/.tauri/cryptdoor.key`):
 
 ```bash
 pnpm tauri:build:signed
 ```
 
-## Релиз
+## Releases
 
-Релизы собираются автоматически через GitHub Actions для **macOS (Apple Silicon)** и **Windows x64** при пуше тега. Также генерируется `latest.json` для tauri-plugin-updater.
+Releases are produced automatically by GitHub Actions for **macOS (Apple Silicon)** and **Windows x64** on every pushed tag. The workflow also generates `latest.json` for `tauri-plugin-updater`.
 
 ```bash
-pnpm release:bump patch         # 0.1.0 -> 0.1.1 (или minor / major / явная версия)
+pnpm release:bump patch         # 0.1.0 → 0.1.1 (also: minor, major, or explicit version)
 git commit -am "release v0.1.1"
 git tag v0.1.1
 git push && git push --tags
 ```
 
-Через ~15 минут на странице Releases появятся `.dmg`, `.exe`, `.app.tar.gz`, `.sig` и `latest.json`.
+After ~15–20 minutes, the [Releases page](https://github.com/AntonMhnk/cryptdoor.online/releases) will have `.dmg`, `.exe`, `.app.tar.gz`, `.sig`, and `latest.json` attached.
 
-### Секреты GitHub Actions (Settings → Secrets and variables → Actions)
+### GitHub Actions secrets
 
-| Имя | Содержимое |
+Set under **Settings → Secrets and variables → Actions**:
+
+| Name | Value |
 |---|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | Содержимое файла `~/.tauri/cryptdoor.key` (целиком) |
+| `TAURI_SIGNING_PRIVATE_KEY` | The full contents of `~/.tauri/cryptdoor.key` |
 
-Ключ был сгенерирован с пустым паролем, поэтому `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` создавать не нужно (GitHub запрещает пустые секреты — workflow подставит пустую строку сам).
+The key was generated with an empty password, so `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is not required (GitHub doesn't allow empty secrets — the workflow defaults to an empty string).
 
-Без `TAURI_SIGNING_PRIVATE_KEY` релизный workflow **упадёт** на этапе подписи updater-артефактов.
+Without `TAURI_SIGNING_PRIVATE_KEY`, the release workflow will **fail** while signing updater artifacts.
 
-## Архитектура
+## Architecture
 
 ```
 src/                            # React UI
-├── App.tsx
+├── App.tsx                     # main view, update banner, connection state
+├── styles.css
 └── lib/
-    ├── vless.ts                # парсер VLESS-ссылок и генератор YAML
-    ├── tauri.ts                # invoke()-обёртка
-    └── storage.ts              # localStorage для ключей
+    ├── vless.ts                # VLESS link parser + Mihomo YAML generator
+    ├── tauri.ts                # invoke() wrapper
+    └── storage.ts              # localStorage for keys
 
 src-tauri/
 ├── src/
-│   ├── lib.rs                  # Tauri runtime + tray icon
-│   ├── commands.rs             # connect/disconnect/install_helper
-│   ├── bin/helper.rs           # привилегированный демон
+│   ├── lib.rs                  # Tauri runtime, tray icon, updater check
+│   ├── commands.rs             # connect / disconnect / install_helper / install_update
+│   ├── bin/helper.rs           # privileged daemon (launchd / Windows Service)
 │   └── core/
-│       ├── mihomo.rs           # запуск/остановка mihomo
-│       ├── tun_config.rs       # YAML для TUN-режима
-│       └── helper_client.rs    # IPC c helper'ом
-├── sidecar/                    # mihomo + helper (генерируются скриптами)
-├── icons/                      # иконки приложения и трея
-└── resources/
-    └── online.cryptdoor.helper.plist  # macOS launchd plist
+│       ├── mihomo.rs           # spawn / supervise mihomo
+│       ├── tun_config.rs       # platform-specific TUN YAML
+│       └── helper_client.rs    # IPC client (Unix socket / Named Pipe)
+├── sidecar/                    # mihomo + helper (populated by scripts/)
+├── icons/                      # app and tray icons
+├── windows/
+│   └── hooks.nsh               # NSIS installer hooks (stop/start service)
+├── resources/
+│   └── online.cryptdoor.helper.plist  # macOS launchd plist
+├── tauri.conf.json             # shared Tauri config
+├── tauri.macos.conf.json       # macOS-specific overrides
+└── tauri.windows.conf.json     # Windows-specific overrides
 ```
 
-## Лицензия
+## How updates work
+
+1. On every launch the app fetches `latest.json` from the latest GitHub release.
+2. If a newer version exists, an **Update available** banner appears in the UI.
+3. The user clicks **Install** — the app downloads the signed installer in the background, with a live progress bar.
+4. Tauri verifies the minisign signature against the public key embedded in the binary.
+5. The new bundle is staged. The user clicks **Restart now** to apply it (no surprise restarts).
+6. On Windows, the NSIS installer's pre-install hook stops `CryptDoorHelper` so the helper binary can be replaced; the post-install hook starts it again. On macOS the new `.app` is swapped in place.
+
+## License
 
 Private project.

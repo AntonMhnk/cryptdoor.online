@@ -505,6 +505,7 @@ pub async fn current_external_ip() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    use tauri::Emitter;
     use tauri_plugin_updater::UpdaterExt;
 
     let updater = app.updater().map_err(|e| format!("updater init: {e}"))?;
@@ -514,10 +515,45 @@ pub async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), String>
         .map_err(|e| format!("update check: {e}"))?
         .ok_or_else(|| "no update available".to_string())?;
 
+    let app_for_progress = app.clone();
+    let mut downloaded: u64 = 0;
+    let mut total: u64 = 0;
+    let mut last_emit: u64 = 0;
+
     update
-        .download_and_install(|_, _| {}, || {})
+        .download_and_install(
+            move |chunk_length, content_length| {
+                downloaded = downloaded.saturating_add(chunk_length as u64);
+                if let Some(t) = content_length {
+                    total = t;
+                }
+                // Throttle: emit only every ~64 KB so we don't flood the IPC channel.
+                if downloaded.saturating_sub(last_emit) >= 64 * 1024 || downloaded == total {
+                    last_emit = downloaded;
+                    let _ = app_for_progress.emit(
+                        "update-progress",
+                        serde_json::json!({
+                            "downloaded": downloaded,
+                            "total": total,
+                        }),
+                    );
+                }
+            },
+            || {
+                log::info!("update download finished");
+            },
+        )
         .await
         .map_err(|e| format!("download/install: {e}"))?;
 
+    let _ = app.emit("update-installed", ());
+    Ok(())
+}
+
+/// Restart the application — used by the UI after a successful update so the
+/// user can apply the new version on their schedule (rather than the app
+/// pulling the rug out from under them mid-action).
+#[tauri::command]
+pub fn restart_app<R: Runtime>(app: AppHandle<R>) {
     app.restart();
 }

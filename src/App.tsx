@@ -40,9 +40,20 @@ export default function App() {
   })
   const [autostart, setAutostart] = useState<boolean>(false)
   const [version, setVersion] = useState<string>('')
-  const [pendingUpdate, setPendingUpdate] = useState<{ version: string } | null>(null)
-  const [installingUpdate, setInstallingUpdate] = useState<boolean>(false)
+  const [pendingUpdate, setPendingUpdate] = useState<{
+    version: string
+    notes: string
+  } | null>(null)
+  const [updatePhase, setUpdatePhase] = useState<
+    'idle' | 'downloading' | 'installed' | 'restarting'
+  >('idle')
+  const [updateProgress, setUpdateProgress] = useState<{
+    downloaded: number
+    total: number
+  }>({ downloaded: 0, total: 0 })
   const [updateDismissed, setUpdateDismissed] = useState<boolean>(false)
+  const [showNotes, setShowNotes] = useState<boolean>(false)
+  const [updatedToast, setUpdatedToast] = useState<string | null>(null)
 
   const activeKey = useMemo(
     () => keys.find(k => k.id === activeId) ?? null,
@@ -69,25 +80,67 @@ export default function App() {
   }, [refreshHelper])
 
   useEffect(() => {
-    let unlisten: UnlistenFn | undefined
-    listen<{ version: string }>('update-available', evt => {
-      setPendingUpdate(evt.payload)
+    const unlisteners: UnlistenFn[] = []
+    listen<{ version: string; notes: string }>('update-available', evt => {
+      setPendingUpdate({
+        version: evt.payload.version,
+        notes: evt.payload.notes || '',
+      })
       setUpdateDismissed(false)
-    }).then(fn => { unlisten = fn })
-    return () => { unlisten?.() }
+      setUpdatePhase('idle')
+    }).then(fn => unlisteners.push(fn))
+
+    listen<{ downloaded: number; total: number }>('update-progress', evt => {
+      setUpdateProgress(evt.payload)
+    }).then(fn => unlisteners.push(fn))
+
+    listen('update-installed', () => {
+      setUpdatePhase('installed')
+    }).then(fn => unlisteners.push(fn))
+
+    return () => {
+      unlisteners.forEach(fn => fn())
+    }
   }, [])
 
+  // After a successful update, the new app version starts up; show a one-shot
+  // toast confirming the upgrade. We compare against the version we last saw
+  // so this fires only on the first launch after install.
+  useEffect(() => {
+    if (!version) return
+    const KEY = 'cryptdoor.lastSeenVersion'
+    const last = localStorage.getItem(KEY)
+    if (last && last !== version) {
+      setUpdatedToast(version)
+      const t = setTimeout(() => setUpdatedToast(null), 6000)
+      localStorage.setItem(KEY, version)
+      return () => clearTimeout(t)
+    }
+    localStorage.setItem(KEY, version)
+  }, [version])
+
   const handleInstallUpdate = useCallback(async () => {
-    if (installingUpdate) return
-    setInstallingUpdate(true)
+    if (updatePhase !== 'idle') return
+    setUpdatePhase('downloading')
+    setUpdateProgress({ downloaded: 0, total: 0 })
     setError(null)
     try {
       await api.installUpdate()
     } catch (e) {
-      setInstallingUpdate(false)
+      setUpdatePhase('idle')
       setError(typeof e === 'string' ? e : 'Update failed')
     }
-  }, [installingUpdate])
+  }, [updatePhase])
+
+  const handleRestartApp = useCallback(async () => {
+    setUpdatePhase('restarting')
+    try {
+      await api.restartApp()
+    } catch (e) {
+      setUpdatePhase('installed')
+      setError(typeof e === 'string' ? e : 'Restart failed')
+    }
+  }, [])
 
   const toggleAutostart = useCallback(async () => {
     try {
@@ -219,6 +272,12 @@ export default function App() {
   }, [statusLabel, status])
 
   const showUpdateBanner = pendingUpdate && !updateDismissed
+  const formatMB = (bytes: number) =>
+    bytes <= 0 ? '0' : (bytes / (1024 * 1024)).toFixed(1)
+  const progressPct =
+    updateProgress.total > 0
+      ? Math.min(100, (updateProgress.downloaded / updateProgress.total) * 100)
+      : 0
 
   return (
     <div className="app">
@@ -230,30 +289,102 @@ export default function App() {
         </div>
       )}
 
+      {updatedToast && (
+        <div className="updated-toast" onClick={() => setUpdatedToast(null)}>
+          <span className="updated-toast-check">✓</span>
+          <div>
+            <div className="updated-toast-title">Updated to v{updatedToast}</div>
+            <div className="updated-toast-sub">CryptDoor was upgraded successfully.</div>
+          </div>
+        </div>
+      )}
+
       {showUpdateBanner && (
-        <div className="update-banner">
-          <div className="update-banner-info">
-            <div className="update-banner-title">Update available</div>
-            <div className="update-banner-sub">
-              v{version} → v{pendingUpdate.version}
+        <div className={`update-banner update-banner-${updatePhase}`}>
+          <div className="update-banner-row">
+            <div className="update-banner-info">
+              <div className="update-banner-title">
+                {updatePhase === 'installed'
+                  ? 'Update ready'
+                  : updatePhase === 'downloading'
+                  ? 'Downloading update'
+                  : 'Update available'}
+              </div>
+              <div className="update-banner-sub">
+                v{version} → v{pendingUpdate.version}
+                {updatePhase === 'downloading' && updateProgress.total > 0 && (
+                  <>
+                    {' · '}
+                    {formatMB(updateProgress.downloaded)} /{' '}
+                    {formatMB(updateProgress.total)} MB
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="update-banner-actions">
+              {updatePhase === 'idle' && (
+                <>
+                  <button
+                    className="update-banner-later"
+                    onClick={() => setUpdateDismissed(true)}
+                  >
+                    Later
+                  </button>
+                  <button
+                    className="update-banner-install"
+                    onClick={handleInstallUpdate}
+                  >
+                    Install
+                  </button>
+                </>
+              )}
+              {updatePhase === 'downloading' && (
+                <button className="update-banner-install" disabled>
+                  {progressPct > 0
+                    ? `${Math.round(progressPct)}%`
+                    : 'Starting…'}
+                </button>
+              )}
+              {updatePhase === 'installed' && (
+                <button
+                  className="update-banner-install update-banner-restart"
+                  onClick={handleRestartApp}
+                >
+                  Restart now
+                </button>
+              )}
+              {updatePhase === 'restarting' && (
+                <button className="update-banner-install" disabled>
+                  Restarting…
+                </button>
+              )}
             </div>
           </div>
-          <div className="update-banner-actions">
-            <button
-              className="update-banner-later"
-              onClick={() => setUpdateDismissed(true)}
-              disabled={installingUpdate}
-            >
-              Later
-            </button>
-            <button
-              className="update-banner-install"
-              onClick={handleInstallUpdate}
-              disabled={installingUpdate}
-            >
-              {installingUpdate ? 'Installing…' : 'Install'}
-            </button>
-          </div>
+
+          {updatePhase === 'downloading' && (
+            <div className="update-progress">
+              <div
+                className="update-progress-fill"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          )}
+
+          {pendingUpdate.notes && updatePhase !== 'restarting' && (
+            <div className="update-banner-notes-wrap">
+              <button
+                className="update-banner-notes-toggle"
+                onClick={() => setShowNotes(s => !s)}
+                aria-expanded={showNotes}
+              >
+                {showNotes ? 'Hide changes' : "What's new"}
+                <span className={`chev ${showNotes ? 'open' : ''}`}>›</span>
+              </button>
+              {showNotes && (
+                <pre className="update-banner-notes">{pendingUpdate.notes}</pre>
+              )}
+            </div>
+          )}
         </div>
       )}
 
