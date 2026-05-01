@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { getVersion } from '@tauri-apps/api/app'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import { api, HelperStatus } from './lib/tauri'
 import {
@@ -34,6 +35,8 @@ export default function App() {
     version: null,
   })
   const [autostart, setAutostart] = useState<boolean>(false)
+  const [version, setVersion] = useState<string>('')
+  const [updateReady, setUpdateReady] = useState<boolean>(false)
 
   const activeKey = useMemo(
     () => keys.find(k => k.id === activeId) ?? null,
@@ -56,7 +59,14 @@ export default function App() {
       if (s.running) setStatus('connected')
     }).catch(() => {})
     isAutostartEnabled().then(setAutostart).catch(() => {})
+    getVersion().then(setVersion).catch(() => {})
   }, [refreshHelper])
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined
+    listen('update-installed', () => setUpdateReady(true)).then(fn => { unlisten = fn })
+    return () => { unlisten?.() }
+  }, [])
 
   const toggleAutostart = useCallback(async () => {
     try {
@@ -190,6 +200,12 @@ export default function App() {
   return (
     <div className="app">
       <div className="titlebar" />
+      {version && (
+        <div className="version-tag" title={updateReady ? 'Update will be applied on next restart' : `CryptDoor v${version}`}>
+          v{version}
+          {updateReady && <span className="version-dot" aria-label="Update pending" />}
+        </div>
+      )}
       <div className="shell">
         <div className="brand">
           <span className="brand-dot" />

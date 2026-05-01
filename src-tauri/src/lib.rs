@@ -8,6 +8,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, Runtime,
 };
+use tauri_plugin_updater::UpdaterExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,6 +17,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--autostart"]),
@@ -40,6 +43,14 @@ pub fn run() {
                     let _ = win.hide();
                 }
             }
+
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = check_for_updates(handle).await {
+                    log::warn!("updater check failed: {e:#}");
+                }
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -131,6 +142,39 @@ fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
         let _ = win.unminimize();
         let _ = win.set_focus();
     }
+}
+
+async fn check_for_updates<R: Runtime>(app: AppHandle<R>) -> anyhow::Result<()> {
+    let updater = app.updater()?;
+    let Some(update) = updater.check().await? else {
+        log::info!("no update available");
+        return Ok(());
+    };
+
+    log::info!(
+        "update {} available, downloading silently",
+        update.version
+    );
+    let _ = app.emit(
+        "update-available",
+        serde_json::json!({ "version": update.version }),
+    );
+
+    let mut downloaded: u64 = 0;
+    update
+        .download_and_install(
+            |chunk_length, _content_length| {
+                downloaded = downloaded.saturating_add(chunk_length as u64);
+            },
+            || {
+                log::info!("update download finished");
+            },
+        )
+        .await?;
+
+    log::info!("update installed, will be applied on next launch");
+    let _ = app.emit("update-installed", ());
+    Ok(())
 }
 
 fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
