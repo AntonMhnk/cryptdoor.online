@@ -263,7 +263,35 @@ fn run_server() {
         }
     };
 
-    let listener = match ListenerOptions::new().name(name).create_sync() {
+    let listener_options = ListenerOptions::new().name(name);
+
+    // On Windows we run as LocalSystem and the named pipe needs explicit ACLs,
+    // otherwise the user-mode UI process cannot connect (os error 5).
+    // SDDL: full access for Builtin Admins (BA) and Local System (SY),
+    // generic read+write for World (WD).
+    #[cfg(target_os = "windows")]
+    let listener_options = {
+        use interprocess::os::windows::local_socket::ListenerOptionsExt;
+        use interprocess::os::windows::security_descriptor::SecurityDescriptor;
+        use widestring::U16CString;
+
+        let sddl = match U16CString::from_str("D:(A;;GA;;;BA)(A;;GA;;;SY)(A;;GRGW;;;WD)") {
+            Ok(s) => s,
+            Err(e) => {
+                log(&format!("sddl encode failed: {e}"));
+                std::process::exit(1);
+            }
+        };
+        match SecurityDescriptor::deserialize(sddl.as_ucstr()) {
+            Ok(sd) => listener_options.security_descriptor(sd),
+            Err(e) => {
+                log(&format!("security descriptor parse failed: {e}"));
+                std::process::exit(1);
+            }
+        }
+    };
+
+    let listener = match listener_options.create_sync() {
         Ok(l) => l,
         Err(e) => {
             log(&format!("bind failed: {e}"));

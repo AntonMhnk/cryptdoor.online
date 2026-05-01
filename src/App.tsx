@@ -15,6 +15,10 @@ import { buildMihomoConfig, parseVless, VlessParseError } from './lib/vless'
 
 type Status = 'idle' | 'preparing' | 'installing' | 'connecting' | 'connected' | 'disconnecting'
 
+const isWindows =
+  typeof navigator !== 'undefined' &&
+  /windows/i.test(navigator.userAgent || navigator.platform || '')
+
 const PowerIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
@@ -240,8 +244,9 @@ export default function App() {
 
         {!helper.installed && status === 'idle' && (
           <div className="hint">
-            On first connect macOS will ask for your password — once. CryptDoor needs
-            this to route all traffic (including Telegram) through the VPN.
+            {isWindows
+              ? 'On first connect Windows will show a UAC prompt — once. CryptDoor needs admin rights to route all traffic (including Telegram) through the VPN.'
+              : 'On first connect macOS will ask for your password — once. CryptDoor needs this to route all traffic (including Telegram) through the VPN.'}
           </div>
         )}
 
