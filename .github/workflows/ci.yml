@@ -53,6 +53,17 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: pnpm prebuild:wintun ${{ matrix.target }}
 
+      - name: Placeholder helper (avoids externalBin chicken-and-egg)
+        shell: bash
+        run: |
+          mkdir -p src-tauri/sidecar
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            : > "src-tauri/sidecar/cryptdoor-helper-${{ matrix.target }}.exe"
+          else
+            : > "src-tauri/sidecar/cryptdoor-helper-${{ matrix.target }}"
+            chmod +x "src-tauri/sidecar/cryptdoor-helper-${{ matrix.target }}"
+          fi
+
       - name: Build helper binary
         run: |
           cd src-tauri
