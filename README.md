@@ -74,9 +74,10 @@ git push && git push --tags
 | Имя | Содержимое |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY` | Содержимое файла `~/.tauri/cryptdoor.key` (целиком) |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Пароль ключа (если генерили без пароля — пустая строка) |
 
-Без них релизный workflow **упадёт** на этапе подписи updater-артефактов.
+Ключ был сгенерирован с пустым паролем, поэтому `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` создавать не нужно (GitHub запрещает пустые секреты — workflow подставит пустую строку сам).
+
+Без `TAURI_SIGNING_PRIVATE_KEY` релизный workflow **упадёт** на этапе подписи updater-артефактов.
 
 ## Архитектура
 

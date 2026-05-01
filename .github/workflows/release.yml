@@ -93,7 +93,10 @@ jobs:
       - name: Build Tauri app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The key was generated with an empty password (--password "").
+          # GitHub Secrets disallows empty strings, so we just leave the env
+          # variable empty if no secret is provided.
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: pnpm tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts (macOS)
