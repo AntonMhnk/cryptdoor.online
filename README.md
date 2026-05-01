@@ -123,6 +123,29 @@ src-tauri/
 5. The new bundle is staged. The user clicks **Restart now** to apply it (no surprise restarts).
 6. On Windows, the NSIS installer's pre-install hook stops `CryptDoorHelper` so the helper binary can be replaced; the post-install hook starts it again. On macOS the new `.app` is swapped in place.
 
+## Security
+
+CryptDoor is a VPN client, so we publish our source code for transparency
+and reproducible builds. See [SECURITY.md](SECURITY.md) for:
+
+- How to report a vulnerability privately
+- How releases are signed (and how you can verify a `.dmg` / `.exe` yourself)
+- An explicit list of what CryptDoor does **not** do (no telemetry, no phone-home,
+  no traffic logs)
+
 ## License
 
-Private project.
+CryptDoor's source is **publicly visible for audit and verification only**, but
+it is **not open-source** and is **not free to reuse**.
+
+In short:
+
+- ✅ You **may** read, browse, and audit the code.
+- ✅ You **may** build it locally to verify the published binaries.
+- ✅ You **may** report bugs and security issues.
+- ❌ You **may not** copy, fork, redistribute, or use this code in your own projects.
+- ❌ You **may not** ship a derivative or competing product based on this source.
+
+See [LICENSE](LICENSE) for the full terms.
+
+For licensing inquiries or partnership requests, open a GitHub issue.

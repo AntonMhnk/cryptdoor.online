@@ -1,0 +1,41 @@
+Copyright (c) 2026 CryptDoor. All rights reserved.
+
+This source code is made publicly visible for the sole purposes of:
+
+  1. Security review and verification of the released application's behavior.
+  2. Reproducible-build verification — confirming that the official release
+     binaries (.dmg, .exe, .app.tar.gz) are built from this exact source.
+  3. Reporting bugs, security issues, or compatibility problems.
+
+You may:
+
+  - Read, browse, and audit this source code.
+  - Build the application locally from source for personal verification.
+  - Submit issues or pull requests for review by the maintainer.
+
+You may NOT, without prior written permission from the copyright holder:
+
+  - Copy, redistribute, sublicense, or sell this source code or any portion
+    of it, modified or unmodified.
+  - Use this source code (or any derivative work based on it) in your own
+    projects, whether open-source, proprietary, or commercial.
+  - Distribute compiled binaries derived from this source under any name
+    other than the one used by the official CryptDoor release channel.
+  - Create a competing product, service, or fork that uses this source code
+    or any substantial part of it as a starting point.
+  - Remove, alter, or obscure this license, copyright notices, branding,
+    or any embedded signing keys.
+
+Pull requests submitted to this repository are licensed by their authors
+to the copyright holder under the same terms as this LICENSE upon merge.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF,
+OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+For licensing inquiries, partnerships, or permission requests, contact:
+https://github.com/AntonMhnk/cryptdoor.online
