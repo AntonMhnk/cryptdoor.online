@@ -53,6 +53,9 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: pnpm prebuild:wintun ${{ matrix.target }}
 
+      - name: Build frontend (creates dist/ for Tauri)
+        run: pnpm build
+
       - name: Placeholder helper (avoids externalBin chicken-and-egg)
         shell: bash
         run: |
@@ -75,9 +78,6 @@ jobs:
         env:
           PROFILE: release
           CARGO_BUILD_TARGET: ${{ matrix.target }}
-
-      - name: TypeScript check
-        run: pnpm build
 
       - name: Cargo check
         run: |
