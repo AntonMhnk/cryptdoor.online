@@ -70,10 +70,14 @@ pub fn helper_socket_ready() -> bool {
 
 #[cfg(target_os = "windows")]
 pub fn helper_installed() -> bool {
+    // `sc query <name>` returns exit code 0 if the service exists (regardless of
+    // its current state) and 1060 (ERROR_SERVICE_DOES_NOT_EXIST) if it doesn't.
+    // We rely on the exit code rather than parsing stdout because sc.exe output
+    // is localized — "SERVICE_NAME" becomes "Имя_службы" on Russian Windows,
+    // breaking string matching and causing repeated UAC prompts on every Connect.
     use std::process::Command;
-    let out = Command::new("sc").args(["query", SERVICE_NAME]).output();
-    match out {
-        Ok(o) => o.status.success() && String::from_utf8_lossy(&o.stdout).contains("SERVICE_NAME"),
+    match Command::new("sc").args(["query", SERVICE_NAME]).output() {
+        Ok(o) => o.status.success(),
         Err(_) => false,
     }
 }
