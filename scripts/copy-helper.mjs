@@ -21,6 +21,7 @@ const isWin = process.platform === 'win32'
 const exeExt = isWin ? '.exe' : ''
 
 const triple = (() => {
+  if (process.env.CARGO_BUILD_TARGET) return process.env.CARGO_BUILD_TARGET
   try {
     const out = execSync('rustc -vV').toString()
     const m = out.match(/(?<=host: ).+(?=\s*)/g)
@@ -53,20 +54,30 @@ try {
 
 const profile = process.env.PROFILE === 'release' ? 'release' : 'debug'
 const helperBinName = `cryptdoor-helper${exeExt}`
-let src = join(targetDir, profile, helperBinName)
-if (!existsSync(src)) {
-  const fallback = join(
-    targetDir,
-    profile === 'release' ? 'debug' : 'release',
-    helperBinName,
-  )
-  if (existsSync(fallback)) {
-    src = fallback
-  } else {
-    console.error(`helper not found at ${src}`)
-    console.error('run: cd src-tauri && cargo build --bin cryptdoor-helper')
-    process.exit(1)
-  }
+
+// `cargo build --target <triple>` puts artifacts under `target/<triple>/<profile>/`,
+// while plain `cargo build` puts them under `target/<profile>/`. Try the
+// triple-aware path first if CARGO_BUILD_TARGET is set, then fall back.
+const cargoTarget = process.env.CARGO_BUILD_TARGET || ''
+const candidates = [
+  cargoTarget && join(targetDir, cargoTarget, profile, helperBinName),
+  join(targetDir, profile, helperBinName),
+  join(targetDir, profile === 'release' ? 'debug' : 'release', helperBinName),
+  cargoTarget &&
+    join(
+      targetDir,
+      cargoTarget,
+      profile === 'release' ? 'debug' : 'release',
+      helperBinName,
+    ),
+].filter(Boolean)
+
+let src = candidates.find(p => existsSync(p))
+if (!src) {
+  console.error('helper not found. tried:')
+  for (const c of candidates) console.error('  ' + c)
+  console.error('run: cd src-tauri && cargo build --bin cryptdoor-helper')
+  process.exit(1)
 }
 
 mkdirSync(sidecar, { recursive: true })
